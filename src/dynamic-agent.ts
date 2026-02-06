@@ -3,12 +3,55 @@ import path from "node:path";
 import os from "node:os";
 import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk";
 import type { DynamicAgentCreationConfig } from "./types.js";
+import { loadIdentityMap, getUserInfo } from "./identity.js";
 
 export type MaybeCreateDynamicAgentResult = {
   created: boolean;
   updatedCfg: OpenClawConfig;
   agentId?: string;
 };
+
+/**
+ * 生成用户友好的Agent ID
+ * 格式: feishu-用户名-短ID
+ * 示例: feishu-Bella-5cd4, feishu-aa1-bc19
+ */
+function generateAgentId(
+  openId: string,
+  identityMapPath?: string
+): string {
+  // 尝试从身份表获取用户姓名
+  let userName: string | null = null;
+  
+  if (identityMapPath) {
+    try {
+      const identityMap = loadIdentityMap(identityMapPath);
+      if (identityMap) {
+        const user = getUserInfo(identityMap, openId);
+        if (user?.name) {
+          userName = user.name;
+        }
+      }
+    } catch {
+      // 忽略加载错误
+    }
+  }
+
+  // 提取OpenID前4位作为短ID（去掉ou_前缀）
+  const shortId = openId.replace(/^ou_/, "").slice(0, 4);
+
+  if (userName) {
+    // 清理姓名中的特殊字符，确保文件系统安全
+    const safeName = userName
+      .replace(/[^\w\-\u4e00-\u9fa5]/g, "") // 保留字母数字、横线、中文
+      .slice(0, 20); // 限制长度
+    
+    return `feishu-${safeName}-${shortId}`;
+  }
+
+  // 没有姓名时使用短ID
+  return `feishu-${openId.replace(/^ou_/, "")}`;
+}
 
 /**
  * Check if a dynamic agent should be created for a DM user and create it if needed.
@@ -20,8 +63,9 @@ export async function maybeCreateDynamicAgent(params: {
   senderOpenId: string;
   dynamicCfg: DynamicAgentCreationConfig;
   log: (msg: string) => void;
+  identityMapPath?: string;
 }): Promise<MaybeCreateDynamicAgentResult> {
-  const { cfg, runtime, senderOpenId, dynamicCfg, log } = params;
+  const { cfg, runtime, senderOpenId, dynamicCfg, log, identityMapPath } = params;
 
   // Check if there's already a binding for this user
   const existingBindings = cfg.bindings ?? [];
@@ -49,8 +93,8 @@ export async function maybeCreateDynamicAgent(params: {
     }
   }
 
-  // Use full OpenID as agent ID suffix (OpenID format: ou_xxx is already filesystem-safe)
-  const agentId = `feishu-${senderOpenId}`;
+  // 生成用户友好的Agent ID
+  const agentId = generateAgentId(senderOpenId, identityMapPath);
 
   // Check if agent already exists (but binding was missing)
   const existingAgent = (cfg.agents?.list ?? []).find((a) => a.id === agentId);

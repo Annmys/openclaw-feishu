@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { ClawdbotConfig, RuntimeEnv } from "openclaw/plugin-sdk";
 import {
   buildPendingHistoryContextFromMap,
@@ -643,12 +644,19 @@ export async function handleFeishuMessage(params: {
       const dynamicCfg = feishuCfg?.dynamicAgentCreation as DynamicAgentCreationConfig | undefined;
       if (dynamicCfg?.enabled) {
         const runtime = getFeishuRuntime();
+        // 构建身份映射表路径（优先使用工作空间下的规则目录）
+        const identityMapPath = path.join(
+          cfg.agents?.defaults?.workspace ?? process.env.HOME ?? "",
+          "rules/feishu-identity.yaml"
+        );
+
         const result = await maybeCreateDynamicAgent({
           cfg,
           runtime,
           senderOpenId: ctx.senderOpenId,
           dynamicCfg,
           log: (msg) => log(msg),
+          identityMapPath,
         });
         if (result.created) {
           effectiveCfg = result.updatedCfg;
