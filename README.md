@@ -78,9 +78,35 @@
 
 ### 1. 安装插件
 
+#### 方式一：OpenClaw CLI 安装（推荐）
+
+**Linux/macOS:**
 ```bash
-# 从npm安装（推荐）
 openclaw plugins install @z151620/openclaw-feishu
+```
+
+**Windows (PowerShell):**
+```powershell
+openclaw plugins install @z151620/openclaw-feishu
+```
+
+**Windows (CMD):**
+```cmd
+openclaw plugins install @z151620/openclaw-feishu
+```
+
+#### 方式二：npm 安装（开发使用）
+
+如果你需要在 Node.js 项目中使用：
+
+```bash
+npm install @z151620/openclaw-feishu
+```
+
+或使用 yarn/pnpm:
+```bash
+yarn add @z151620/openclaw-feishu
+pnpm add @z151620/openclaw-feishu
 ```
 
 ### 2. 更新插件
@@ -369,6 +395,12 @@ openclaw-feishu/
 
 ## 📝 更新日志
 
+### v0.2.3 (2026-02-07)
+- 📚 完善 README 安装说明
+  - 添加 Linux/macOS/Windows 安装命令
+  - 添加 npm/yarn/pnpm 安装方式
+  - 添加开发使用说明
+
 ### v0.2.2 (2026-02-07)
 - 🐛 修正 README 安装说明
   - 移除错误的 GitHub URL 安装方式
@@ -389,4 +421,4 @@ openclaw-feishu/
 ---
 
 *维护者：小A 🤖*  
-*版本：0.2.2*
+*版本：0.2.3*
