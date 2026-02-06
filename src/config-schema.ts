@@ -68,6 +68,26 @@ const DynamicAgentCreationSchema = z
   .optional();
 
 /**
+ * Central authorization configuration.
+ * Controls master session routing and permission management.
+ */
+const CentralAuthSchema = z
+  .object({
+    /** Master session key for routing sensitive operations */
+    masterSessionKey: z.string().optional().default("agent:main:main"),
+    /** Path to identity mapping YAML file */
+    identityMapPath: z.string().optional(),
+    /** Report group ID for task notifications */
+    reportGroupId: z.string().optional(),
+    /** Enable automatic identity confirmation for existing users */
+    enableAutoConfirm: z.boolean().optional().default(true),
+    /** Enable central authorization checks */
+    enabled: z.boolean().optional().default(true),
+  })
+  .strict()
+  .optional();
+
+/**
  * Feishu tools configuration.
  * Controls which tool categories are enabled.
  *
@@ -168,6 +188,8 @@ export const FeishuConfigSchema = z
     tools: FeishuToolsConfigSchema,
     // Dynamic agent creation for DM users
     dynamicAgentCreation: DynamicAgentCreationSchema,
+    // Central authorization configuration
+    centralAuth: CentralAuthSchema,
     // Multi-account configuration
     accounts: z.record(z.string(), FeishuAccountConfigSchema.optional()).optional(),
   })

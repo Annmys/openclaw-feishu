@@ -18,7 +18,7 @@ import {
   isFeishuGroupAllowed,
 } from "./policy.js";
 import { createFeishuReplyDispatcher } from "./reply-dispatcher.js";
-import { getMessageFeishu } from "./send.js";
+import { getMessageFeishu, sendMessageFeishu } from "./send.js";
 import { downloadImageFeishu, downloadMessageResourceFeishu } from "./media.js";
 import {
   extractMentionTargets,
@@ -27,6 +27,8 @@ import {
 } from "./mention.js";
 import { maybeCreateDynamicAgent } from "./dynamic-agent.js";
 import type { DynamicAgentCreationConfig } from "./types.js";
+import { createCentralAuth, type CentralAuthConfig } from "./central-auth.js";
+import { initSessionsBridge } from "./sessions-bridge.js";
 
 // --- Permission error extraction ---
 // Extract permission grant URL from Feishu API error response.
@@ -534,6 +536,77 @@ export async function handleFeishuMessage(params: {
   }
 
   log(`feishu[${account.accountId}]: received message from ${ctx.senderOpenId} in ${ctx.chatId} (${ctx.chatType})`);
+
+  // ===== 中央权限检查 =====
+  const centralAuthCfg = feishuCfg?.centralAuth;
+  if (centralAuthCfg?.enabled !== false) {
+    // 初始化 sessions bridge
+    if (runtime) {
+      initSessionsBridge(runtime);
+    }
+    
+    // 构建身份映射表路径
+    const identityMapPath = centralAuthCfg?.identityMapPath || 
+      path.join(
+        cfg.agents?.defaults?.workspace ?? process.env.HOME ?? "",
+        "rules/feishu-identity.yaml"
+      );
+    
+    const authManager = createCentralAuth(
+      {
+        masterSessionKey: centralAuthCfg?.masterSessionKey ?? "agent:main:main",
+        identityMapPath,
+        reportGroupId: centralAuthCfg?.reportGroupId,
+        enableAutoConfirm: centralAuthCfg?.enableAutoConfirm ?? true,
+        feishuAccount: account,
+      },
+      runtime ?? ({} as RuntimeEnv)
+    );
+    
+    // 执行权限检查
+    const authResult = await authManager.handleIncomingMessage({
+      openId: ctx.senderOpenId,
+      message: ctx.content,
+      isGroup,
+      groupId: ctx.chatId,
+      account,
+    });
+    
+    if (!authResult.shouldProcess) {
+      // 权限检查未通过，发送回复
+      if (authResult.reply) {
+        try {
+          await sendMessageFeishu({
+            cfg,
+            to: isGroup ? `chat:${ctx.chatId}` : `user:${ctx.senderOpenId}`,
+            text: authResult.reply,
+            accountId: account.accountId,
+          });
+          log(`feishu[${account.accountId}]: sent auth check reply to ${ctx.senderOpenId}`);
+        } catch (err) {
+          error(`feishu[${account.accountId}]: failed to send auth reply: ${String(err)}`);
+        }
+      }
+      
+      // 转发到主控
+      if (authResult.forwardToMaster && authResult.forwardMessage) {
+        try {
+          await authManager.forwardToMaster({
+            message: authResult.forwardMessage,
+            openId: ctx.senderOpenId,
+            sourceChannel: isGroup ? `飞书群:${ctx.chatId}` : "飞书私聊",
+            account,
+          });
+          log(`feishu[${account.accountId}]: forwarded to master session`);
+        } catch (err) {
+          error(`feishu[${account.accountId}]: failed to forward to master: ${String(err)}`);
+        }
+      }
+      
+      return; // 终止处理
+    }
+  }
+  // ===== 中央权限检查结束 =====
 
   // Log mention targets if detected
   if (ctx.mentionTargets && ctx.mentionTargets.length > 0) {

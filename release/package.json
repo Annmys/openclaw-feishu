@@ -1,0 +1,32 @@
+{
+  "name": "@Annmys/openclaw-feishu",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "OpenClaw飞书插件 - 中央权限版 | 支持动态Agent创建与主控监控",
+  "license": "MIT",
+  "files": ["dist", "skills", "openclaw.plugin.json"],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "openclaw": {
+    "extensions": ["./dist/index.js"],
+    "channel": {
+      "id": "feishu",
+      "label": "Feishu",
+      "selectionLabel": "Feishu/Lark (飞书)",
+      "docsPath": "/channels/feishu",
+      "docsLabel": "feishu",
+      "blurb": "飞书/Lark enterprise messaging with central auth.",
+      "aliases": ["lark"],
+      "order": 70
+    }
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.56.1",
+    "@sinclair/typebox": "^0.34.48",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.29"
+  }
+}

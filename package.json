@@ -60,5 +60,12 @@
   },
   "peerDependencies": {
     "openclaw": ">=2026.1.29"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch index.ts",
+    "start": "tsx index.ts",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
   }
 }
