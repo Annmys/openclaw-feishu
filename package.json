@@ -1,6 +1,6 @@
 {
   "name": "@z151620/openclaw-feishu",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "OpenClaw飞书插件 - 中央权限版 | 支持动态Agent创建与主控监控",
   "license": "MIT",
