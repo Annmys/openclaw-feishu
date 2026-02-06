@@ -86,6 +86,13 @@ const UserModelAssignmentSchema = z
  * Central authorization configuration.
  * Controls master session routing and permission management.
  */
+/**
+ * Model assignment mode
+ * - unified: All users use the same default model (ignore per-user config)
+ * - assigned: Use per-user model config from identity map
+ */
+const ModelAssignmentModeSchema = z.enum(["unified", "assigned"]).optional().default("assigned");
+
 const CentralAuthSchema = z
   .object({
     /** Master session key for routing sensitive operations */
@@ -98,10 +105,12 @@ const CentralAuthSchema = z
     enableAutoConfirm: z.boolean().optional().default(true),
     /** Enable central authorization checks */
     enabled: z.boolean().optional().default(true),
-    /** Default AI model for all users (can be overridden per-user in identity map) */
+    /** Default AI model for all users (used when modelAssignmentMode is 'unified' or user has no specific model) */
     defaultModel: z.string().optional(),
     /** Per-user model assignments (deprecated, use identity map instead) */
     userModels: z.array(UserModelAssignmentSchema).optional(),
+    /** Model assignment mode: 'unified' = all users use default model, 'assigned' = use per-user config from identity map */
+    modelAssignmentMode: ModelAssignmentModeSchema,
   })
   .strict()
   .optional();

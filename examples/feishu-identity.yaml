@@ -103,7 +103,11 @@ channels:
 # - model: AI模型ID，如 "kimi-coding/k2p5"、"siliconflow/deepseek-ai/DeepSeek-V2.5"
 # - systemPrompt: 用户专属的系统提示词
 # 
-# 如果用户不配置model字段，则使用全局默认模型（在openclaw配置中设置）
+# 模型分配模式 (在OpenClaw配置中设置)：
+# - unified (统一模式): 所有用户使用相同的默认模型，忽略此处的model配置
+# - assigned (分配模式): 使用此处配置的每个用户的专属模型
+#
+# 如果用户不配置model字段，则使用全局默认模型
 #
 # 推荐模型：
 # - kimi-coding/k2p5                    # Kimi K2.5 (默认推荐)

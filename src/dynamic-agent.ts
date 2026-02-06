@@ -63,8 +63,12 @@ export async function maybeCreateDynamicAgent(params: {
   dynamicCfg: DynamicAgentCreationConfig;
   log: (msg: string) => void;
   identityMapPath?: string;
+  /** Model assignment mode: 'unified' = all users use default model, 'assigned' = use per-user config */
+  modelAssignmentMode?: "unified" | "assigned";
+  /** Default model to use when modelAssignmentMode is 'unified' or user has no specific model */
+  defaultModel?: string;
 }): Promise<MaybeCreateDynamicAgentResult> {
-  const { cfg, runtime, senderOpenId, dynamicCfg, log, identityMapPath } = params;
+  const { cfg, runtime, senderOpenId, dynamicCfg, log, identityMapPath, modelAssignmentMode = "assigned", defaultModel } = params;
 
   // Check if there's already a binding for this user
   const existingBindings = cfg.bindings ?? [];
@@ -134,23 +138,35 @@ export async function maybeCreateDynamicAgent(params: {
   let userModel: string | undefined;
   let userSystemPrompt: string | undefined;
   
-  if (identityMapPath) {
-    try {
-      const identityMap = loadIdentityMap(identityMapPath);
-      if (identityMap) {
-        // 从身份表获取用户专属模型和系统提示词
-        userModel = getUserModel(identityMap, senderOpenId);
-        userSystemPrompt = getUserSystemPrompt(identityMap, senderOpenId);
-        
-        if (userModel) {
-          log(`  model: ${userModel}`);
+  // 根据模型分配模式决定如何获取模型
+  if (modelAssignmentMode === "unified") {
+    // 统一模式：所有用户使用默认模型
+    userModel = defaultModel;
+    log(`  modelAssignmentMode: unified (使用统一模型)`);
+    if (userModel) {
+      log(`  model: ${userModel} (统一默认)`);
+    }
+  } else {
+    // 分配模式：使用用户专属模型配置
+    if (identityMapPath) {
+      try {
+        const identityMap = loadIdentityMap(identityMapPath);
+        if (identityMap) {
+          // 从身份表获取用户专属模型和系统提示词
+          userModel = getUserModel(identityMap, senderOpenId, defaultModel);
+          userSystemPrompt = getUserSystemPrompt(identityMap, senderOpenId);
+          
+          log(`  modelAssignmentMode: assigned (使用用户专属配置)`);
+          if (userModel) {
+            log(`  model: ${userModel}`);
+          }
+          if (userSystemPrompt) {
+            log(`  systemPrompt: 已配置`);
+          }
         }
-        if (userSystemPrompt) {
-          log(`  systemPrompt: 已配置`);
-        }
+      } catch {
+        // 忽略加载错误
       }
-    } catch {
-      // 忽略加载错误
     }
   }
 
