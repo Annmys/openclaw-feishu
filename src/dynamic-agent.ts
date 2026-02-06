@@ -13,8 +13,10 @@ export type MaybeCreateDynamicAgentResult = {
 
 /**
  * 生成用户友好的Agent ID
- * 格式: feishu-用户名-短ID
- * 示例: feishu-Bella-5cd4, feishu-aa1-bc19
+ * 格式: feishu-用户名
+ * 示例: feishu-Bella, feishu-aa1
+ * 
+ * 注意：此方案假设团队中不会有重名用户
  */
 function generateAgentId(
   openId: string,
@@ -37,19 +39,16 @@ function generateAgentId(
     }
   }
 
-  // 提取OpenID前4位作为短ID（去掉ou_前缀）
-  const shortId = openId.replace(/^ou_/, "").slice(0, 4);
-
   if (userName) {
     // 清理姓名中的特殊字符，确保文件系统安全
     const safeName = userName
       .replace(/[^\w\-\u4e00-\u9fa5]/g, "") // 保留字母数字、横线、中文
       .slice(0, 20); // 限制长度
     
-    return `feishu-${safeName}-${shortId}`;
+    return `feishu-${safeName}`;
   }
 
-  // 没有姓名时使用短ID
+  // 没有姓名时使用OpenID（去掉ou_前缀）
   return `feishu-${openId.replace(/^ou_/, "")}`;
 }
 
