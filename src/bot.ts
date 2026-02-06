@@ -731,6 +731,8 @@ export async function handleFeishuMessage(params: {
           dynamicCfg,
           log: (msg) => log(msg),
           identityMapPath,
+          modelAssignmentMode: feishuCfg?.centralAuth?.modelAssignmentMode ?? "assigned",
+          defaultModel: feishuCfg?.centralAuth?.defaultModel,
         });
         if (result.created) {
           effectiveCfg = result.updatedCfg;
