@@ -1,0 +1,175 @@
+import fs from "node:fs";
+import path from "node:path";
+import yaml from "js-yaml";
+
+/**
+ * 用户权限等级
+ */
+export type PermissionLevel = "L1" | "L2" | "L3" | "L0";
+
+/**
+ * 已验证用户信息
+ */
+export interface VerifiedUser {
+  name: string;
+  level: PermissionLevel;
+  department?: string;
+  verified_at: string;
+  status: "active" | "inactive";
+}
+
+/**
+ * 身份映射表结构
+ */
+export interface IdentityMap {
+  verified_users: Record<string, VerifiedUser>;
+  pending_verifications: PendingVerification[];
+  rejected_claims: RejectedClaim[];
+}
+
+export interface PendingVerification {
+  request_id: string;
+  author_id: string;
+  claimed_name: string;
+  channel: string;
+  session_key: string;
+  submitted_at: string;
+  status: "waiting";
+}
+
+export interface RejectedClaim {
+  author_id: string;
+  claimed_name: string;
+  reason: string;
+  rejected_at: string;
+}
+
+/**
+ * 加载身份映射表
+ */
+export function loadIdentityMap(identityPath: string): IdentityMap | null {
+  try {
+    if (!fs.existsSync(identityPath)) {
+      return null;
+    }
+    const content = fs.readFileSync(identityPath, "utf-8");
+    return yaml.load(content) as IdentityMap;
+  } catch (error) {
+    console.error("Failed to load identity map:", error);
+    return null;
+  }
+}
+
+/**
+ * 获取用户权限等级
+ */
+export function getUserLevel(
+  identityMap: IdentityMap | null,
+  openId: string
+): PermissionLevel {
+  if (!identityMap) return "L0";
+  const user = identityMap.verified_users[openId];
+  if (!user || user.status !== "active") return "L0";
+  return user.level;
+}
+
+/**
+ * 获取用户信息
+ */
+export function getUserInfo(
+  identityMap: IdentityMap | null,
+  openId: string
+): VerifiedUser | null {
+  if (!identityMap) return null;
+  return identityMap.verified_users[openId] ?? null;
+}
+
+/**
+ * 检查是否为新用户（未登记）
+ */
+export function isNewUser(
+  identityMap: IdentityMap | null,
+  openId: string
+): boolean {
+  if (!identityMap) return true;
+  return !identityMap.verified_users[openId];
+}
+
+/**
+ * 提取身份声明
+ * 匹配: "我是XXX", "我叫XXX", "我的名字是XXX"
+ */
+export function extractIdentityClaim(message: string): string | null {
+  const patterns = [
+    /^我是\s*(.+)$/i,
+    /^我叫\s*(.+)$/i,
+    /^我的名字是\s*(.+)$/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = message.trim().match(pattern);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  return null;
+}
+
+/**
+ * 处理身份声明
+ * 返回: 是否为新声明、是否自动确认、处理结果
+ */
+export function handleIdentityClaim(
+  identityMap: IdentityMap,
+  openId: string,
+  claimedName: string
+): {
+  isNewClaim: boolean;
+  autoConfirmed: boolean;
+  existingUser?: VerifiedUser;
+  message: string;
+} {
+  // 检查是否已登记此ID
+  const existingUser = identityMap.verified_users[openId];
+  if (existingUser) {
+    return {
+      isNewClaim: false,
+      autoConfirmed: true,
+      existingUser,
+      message: `身份已确认，欢迎 ${existingUser.name}。`,
+    };
+  }
+
+  // 检查是否有人已登记此名字
+  const nameExists = Object.entries(identityMap.verified_users).find(
+    ([_, user]) => user.name === claimedName && user.status === "active"
+  );
+
+  if (nameExists) {
+    const [existingId, existing] = nameExists;
+    
+    // L1（大A）不允许自动确认
+    if (existing.level === "L1") {
+      return {
+        isNewClaim: true,
+        autoConfirmed: false,
+        message: `身份声明「${claimedName}」已提交，等待大A确认...`,
+      };
+    }
+
+    // 其他等级自动确认（ID变更）
+    return {
+      isNewClaim: true,
+      autoConfirmed: true,
+      existingUser: existing,
+      message: `身份已自动确认，欢迎 ${claimedName}。检测到ID变更，已更新记录。`,
+    };
+  }
+
+  // 全新人，需要人工确认
+  return {
+    isNewClaim: true,
+    autoConfirmed: false,
+    message: `您好！我是小A 🤖\n\n您的身份尚未登记，请等待大A确认后使用。\n\n如 urgent，请直接联系大A。`,
+  };
+}
