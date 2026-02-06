@@ -4,20 +4,45 @@
   "type": "module",
   "description": "OpenClaw飞书插件 - 中央权限版 | 支持动态Agent创建与主控监控",
   "license": "MIT",
-  "files": ["dist", "skills", "openclaw.plugin.json"],
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "files": [
+    "index.ts",
+    "src",
+    "skills",
+    "openclaw.plugin.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Annmys/openclaw-feishu.git"
+  },
+  "keywords": [
+    "openclaw",
+    "feishu",
+    "lark",
+    "飞书",
+    "chatbot",
+    "ai",
+    "claude"
+  ],
   "openclaw": {
-    "extensions": ["./dist/index.js"],
+    "extensions": [
+      "./index.ts"
+    ],
     "channel": {
       "id": "feishu",
       "label": "Feishu",
       "selectionLabel": "Feishu/Lark (飞书)",
       "docsPath": "/channels/feishu",
       "docsLabel": "feishu",
-      "blurb": "飞书/Lark enterprise messaging with central auth.",
-      "aliases": ["lark"],
+      "blurb": "飞书/Lark enterprise messaging.",
+      "aliases": [
+        "lark"
+      ],
       "order": 70
+    },
+    "install": {
+      "npmSpec": "@m1heng-clawd/feishu",
+      "localPath": ".",
+      "defaultChoice": "npm"
     }
   },
   "dependencies": {
@@ -26,7 +51,21 @@
     "js-yaml": "^4.1.0",
     "zod": "^4.3.6"
   },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.0.10",
+    "openclaw": "2026.1.29",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
+  },
   "peerDependencies": {
     "openclaw": ">=2026.1.29"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch index.ts",
+    "start": "tsx index.ts",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
   }
 }
