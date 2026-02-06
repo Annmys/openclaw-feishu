@@ -569,8 +569,9 @@ export async function handleFeishuMessage(params: {
       message: ctx.content,
       isGroup,
       groupId: ctx.chatId,
+      chatId: ctx.chatId,
       account,
-    });
+    }, cfg);  // 传入 cfg 用于审批回调
     
     if (!authResult.shouldProcess) {
       // 权限检查未通过，发送回复

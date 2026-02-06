@@ -81,6 +81,16 @@ export {
   type TaskReport,
 } from "./src/reporter.js";
 
+// 审计日志模块导出 📊
+export {
+  AuditLogger,
+  getGlobalAuditLogger,
+  type AuditEvent,
+  type AuditEventType,
+  type AuditLogConfig,
+} from "./src/audit-logger.js";
+export { FileWatcher, getGlobalFileWatcher } from "./src/file-watcher.js";
+
 const plugin = {
   id: "openclaw-feishu",
   name: "Feishu",

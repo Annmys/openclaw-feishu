@@ -4,7 +4,7 @@
  */
 
 import path from "node:path";
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
+import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import {
   loadIdentityMap,
@@ -35,6 +35,8 @@ import {
 } from "./reporter.js";
 import { sendMessageFeishu } from "./send.js";
 import type { ResolvedFeishuAccount } from "./types.js";
+import { FileWatcher } from "./file-watcher.js";
+import { AuditLogger, getGlobalAuditLogger } from "./audit-logger.js";
 
 export interface CentralAuthConfig {
   /** 身份映射表路径 */
@@ -61,6 +63,8 @@ interface PendingPermissionRequest {
   originalMessage: string;
   sourceChannel: string;
   groupId?: string;
+  chatId: string;  // 用于审批后回调通知
+  isGroup: boolean; // 是否为群聊
   timestamp: number;
 }
 
@@ -69,6 +73,10 @@ export class CentralAuthManager {
   private config: CentralAuthConfig;
   private runtime: PluginRuntime;
   private pendingRequests: Map<string, PendingPermissionRequest> = new Map();
+  private cfg: ClawdbotConfig | null = null;  // 保存配置用于发送消息
+  private fileWatcher: FileWatcher;
+  private identityMapPath: string;
+  private auditLogger: AuditLogger;
 
   constructor(config: CentralAuthConfig, runtime: PluginRuntime) {
     this.config = {
@@ -76,17 +84,40 @@ export class CentralAuthManager {
       ...config,
     };
     this.runtime = runtime;
+    this.fileWatcher = new FileWatcher(1000); // 1秒防抖
+    this.identityMapPath = this.config.identityMapPath || 
+      path.join(process.env.HOME || "", ".openclaw/workspace/rules/feishu-identity.yaml");
+    this.auditLogger = getGlobalAuditLogger();
+    
     this.loadIdentityMap();
+    this.startWatchingIdentityMap();
   }
 
   /**
    * 加载身份映射表
    */
   private loadIdentityMap(): void {
-    const identityPath = this.config.identityMapPath || 
-      path.join(process.env.HOME || "", ".openclaw/workspace/rules/feishu-identity.yaml");
-    
-    this.identityMap = loadIdentityMap(identityPath);
+    this.identityMap = loadIdentityMap(this.identityMapPath);
+    console.log(`[CentralAuth] 身份映射表已加载: ${this.identityMapPath}`);
+  }
+
+  /**
+   * 开始监视身份映射表文件变化
+   */
+  private startWatchingIdentityMap(): void {
+    this.fileWatcher.watch(this.identityMapPath, () => {
+      console.log(`[CentralAuth] 检测到身份映射表变化，正在重新加载...`);
+      this.loadIdentityMap();
+      console.log(`[CentralAuth] 身份映射表已重新加载`);
+    });
+  }
+
+  /**
+   * 停止监视身份映射表
+   */
+  stopWatchingIdentityMap(): void {
+    this.fileWatcher.unwatch(this.identityMapPath);
+    console.log(`[CentralAuth] 已停止监视身份映射表`);
   }
 
   /**
@@ -121,20 +152,29 @@ export class CentralAuthManager {
    * 处理用户消息前的身份和权限检查
    * 返回: 是否继续处理消息、回复消息、是否转发主控
    */
-  async handleIncomingMessage(params: {
-    openId: string;
-    message: string;
-    isGroup: boolean;
-    groupId?: string;
-    account?: ResolvedFeishuAccount;
-  }): Promise<{
+  async handleIncomingMessage(
+    params: {
+      openId: string;
+      message: string;
+      isGroup: boolean;
+      groupId?: string;
+      chatId: string;  // 用于审批后回调通知
+      account?: ResolvedFeishuAccount;
+    },
+    cfg?: any  // ClawdbotConfig，用于审批回调通知
+  ): Promise<{
     shouldProcess: boolean;
     reply?: string;
     forwardToMaster?: boolean;
     forwardMessage?: string;
     requestId?: string;
   }> {
-    const { openId, message, isGroup, groupId, account } = params;
+    const { openId, message, isGroup, groupId, chatId, account } = params;
+    
+    // 保存配置用于审批回调
+    if (cfg) {
+      this.cfg = cfg;
+    }
 
     // 1. 检查身份声明
     const identityClaim = extractIdentityClaim(message);
@@ -200,6 +240,17 @@ export class CentralAuthManager {
     if (!hasPermission && isSensitiveOperation(operationType)) {
       // 敏感操作无权限，转发主控
       const displayName = await this.getDisplayName(openId, account);
+      
+      // 记录审计日志
+      this.auditLogger.logPermissionRequest(
+        openId,
+        displayName,
+        userLevel,
+        operationType,
+        isGroup ? `飞书群:${groupId}` : "飞书私聊",
+        `消息内容: ${message.slice(0, 100)}`
+      );
+      
       const requestId = this.addPendingPermissionRequest({
         openId,
         userName: displayName,
@@ -208,6 +259,8 @@ export class CentralAuthManager {
         originalMessage: message,
         sourceChannel: isGroup ? `飞书群:${groupId}` : "飞书私聊",
         groupId,
+        chatId,
+        isGroup,
       });
       
       return {
@@ -306,19 +359,51 @@ export class CentralAuthManager {
     // 从待处理列表中移除
     this.pendingRequests.delete(requestId);
 
+    // 记录审批结果审计日志
+    this.auditLogger.logPermissionApproval(
+      request.openId,
+      request.userName,
+      request.userLevel,
+      request.operation,
+      approved,
+      request.sourceChannel,
+      reason
+    );
+
+    // 构建通知消息
+    let notificationMessage: string;
     if (approved) {
-      // 批准：通知用户可以执行操作
-      // 实际实现需要记录授权状态，允许用户再次执行该操作
+      notificationMessage = `✅ 您的操作请求已获得批准！\n\n操作类型：${request.operation}\n现在可以重新发送您的请求执行操作。`;
+    } else {
+      notificationMessage = `❌ 您的操作请求已被拒绝。\n\n操作类型：${request.operation}${reason ? `\n原因：${reason}` : ""}\n\n如有疑问，请联系大A。`;
+    }
+
+    // 发送通知给用户
+    if (this.cfg) {
+      try {
+        const { sendMessageFeishu } = await import("./send.js");
+        await sendMessageFeishu({
+          cfg: this.cfg,
+          to: request.isGroup ? `chat:${request.chatId}` : `user:${request.openId}`,
+          text: notificationMessage,
+          accountId: "default",
+        });
+        console.log(`[Permission Approval] 已通知用户 ${request.userName}`);
+      } catch (err) {
+        console.error(`[Permission Approval] 通知用户失败:`, err);
+      }
+    }
+
+    if (approved) {
       return {
         success: true,
-        message: `已批准 ${request.userName} 的 ${request.operation} 请求`,
+        message: `已批准 ${request.userName} 的 ${request.operation} 请求，并已通知用户`,
         request,
       };
     } else {
-      // 拒绝：通知用户
       return {
         success: true,
-        message: `已拒绝 ${request.userName} 的请求${reason ? `: ${reason}` : ""}`,
+        message: `已拒绝 ${request.userName} 的请求${reason ? `: ${reason}` : ""}，并已通知用户`,
         request,
       };
     }
@@ -361,6 +446,16 @@ export class CentralAuthManager {
     }
 
     const formattedReport = formatTaskReport(report);
+    
+    // 记录任务完成审计日志
+    this.auditLogger.logTaskCompleted(
+      report.userId,
+      report.userName,
+      report.userLevel,
+      report.taskType,
+      report.description,
+      report.outputPath
+    );
     
     try {
       // 使用飞书 API 发送到汇报群
@@ -425,6 +520,13 @@ export class CentralAuthManager {
    */
   async getDisplayName(openId: string, account?: ResolvedFeishuAccount): Promise<string> {
     return getUserDisplayName(this.identityMap, openId, account);
+  }
+
+  /**
+   * 获取审计日志记录器
+   */
+  getAuditLogger(): AuditLogger {
+    return this.auditLogger;
   }
 }
 
