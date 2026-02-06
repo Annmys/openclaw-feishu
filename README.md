@@ -80,7 +80,7 @@
 
 ```bash
 # 从npm安装（推荐）
-openclaw plugins install @Annmys/openclaw-feishu
+openclaw plugins install @z151620/openclaw-feishu
 
 # 或从GitHub安装
 openclaw plugins install https://github.com/Annmys/openclaw-feishu.git
