@@ -13,6 +13,8 @@ import {
   isNewUser,
   extractIdentityClaim,
   handleIdentityClaim,
+  getUserDisplayName,
+  shortenOpenId,
   type IdentityMap,
   type VerifiedUser,
 } from "./identity.js";
@@ -40,6 +42,8 @@ export interface CentralAuthConfig {
   reportGroupId?: string;
   /** 是否启用自动身份确认 */
   enableAutoConfirm: boolean;
+  /** 飞书账号配置（用于API调用获取用户姓名） */
+  feishuAccount?: any; // ResolvedFeishuAccount
 }
 
 export class CentralAuthManager {
@@ -216,15 +220,22 @@ export class CentralAuthManager {
     message: string;
     openId: string;
     sourceChannel: string;
+    account?: any; // ResolvedFeishuAccount
   }): Promise<void> {
     const userInfo = this.getUser(params.openId);
     const userLevel = this.getUserLevel(params.openId);
+    
+    // 优先使用身份表中的姓名，如果没有则尝试从飞书API获取
+    let displayName = userInfo?.name;
+    if (!displayName && params.account) {
+      displayName = await getUserDisplayName(this.identityMap, params.openId, params.account);
+    }
     
     const forwardMessage = buildForwardToMasterMessage(
       params.message,
       {
         openId: params.openId,
-        name: userInfo?.name || "未知",
+        name: displayName || "未知",
         level: userLevel,
       },
       params.sourceChannel
@@ -232,6 +243,13 @@ export class CentralAuthManager {
 
     // TODO: 使用 sessions_send 发送到主控
     console.log("[Forward to Master]", forwardMessage);
+  }
+
+  /**
+   * 获取用户显示名称（优先使用身份表，其次飞书API）
+   */
+  async getDisplayName(openId: string, account?: any): Promise<string> {
+    return getUserDisplayName(this.identityMap, openId, account);
   }
 }
 
