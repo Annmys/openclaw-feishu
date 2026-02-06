@@ -68,6 +68,21 @@ const DynamicAgentCreationSchema = z
   .optional();
 
 /**
+ * Model assignment configuration for users.
+ * Allows assigning different AI models to different users.
+ */
+const UserModelAssignmentSchema = z
+  .object({
+    /** User OpenID */
+    openId: z.string(),
+    /** AI model to use for this user (e.g., "kimi-coding/k2p5", "siliconflow/deepseek-ai/DeepSeek-V2.5") */
+    model: z.string(),
+    /** Optional: User-specific system prompt */
+    systemPrompt: z.string().optional(),
+  })
+  .strict();
+
+/**
  * Central authorization configuration.
  * Controls master session routing and permission management.
  */
@@ -83,6 +98,10 @@ const CentralAuthSchema = z
     enableAutoConfirm: z.boolean().optional().default(true),
     /** Enable central authorization checks */
     enabled: z.boolean().optional().default(true),
+    /** Default AI model for all users (can be overridden per-user in identity map) */
+    defaultModel: z.string().optional(),
+    /** Per-user model assignments (deprecated, use identity map instead) */
+    userModels: z.array(UserModelAssignmentSchema).optional(),
   })
   .strict()
   .optional();

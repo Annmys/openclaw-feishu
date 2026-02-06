@@ -125,6 +125,10 @@ export interface VerifiedUser {
   department?: string;
   verified_at: string;
   status: "active" | "inactive";
+  /** AI模型配置 - 如果未设置则使用全局默认模型 */
+  model?: string;
+  /** 用户专属系统提示词 */
+  systemPrompt?: string;
 }
 
 /**
@@ -191,6 +195,40 @@ export function getUserInfo(
 ): VerifiedUser | null {
   if (!identityMap) return null;
   return identityMap.verified_users[openId] ?? null;
+}
+
+/**
+ * 获取用户配置的AI模型
+ * @param identityMap 身份映射表
+ * @param openId 用户OpenID
+ * @param defaultModel 默认模型（如果用户未配置）
+ * @returns 用户配置的模型或默认模型
+ */
+export function getUserModel(
+  identityMap: IdentityMap | null,
+  openId: string,
+  defaultModel?: string
+): string | undefined {
+  if (!identityMap) return defaultModel;
+  const user = identityMap.verified_users[openId];
+  if (!user || user.status !== "active") return defaultModel;
+  return user.model ?? defaultModel;
+}
+
+/**
+ * 获取用户专属系统提示词
+ * @param identityMap 身份映射表
+ * @param openId 用户OpenID
+ * @returns 用户专属提示词或undefined
+ */
+export function getUserSystemPrompt(
+  identityMap: IdentityMap | null,
+  openId: string
+): string | undefined {
+  if (!identityMap) return undefined;
+  const user = identityMap.verified_users[openId];
+  if (!user || user.status !== "active") return undefined;
+  return user.systemPrompt;
 }
 
 /**

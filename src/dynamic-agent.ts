@@ -3,7 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk";
 import type { DynamicAgentCreationConfig } from "./types.js";
-import { loadIdentityMap, getUserInfo } from "./identity.js";
+import { loadIdentityMap, getUserInfo, getUserModel, getUserSystemPrompt } from "./identity.js";
 
 export type MaybeCreateDynamicAgentResult = {
   created: boolean;
@@ -130,6 +130,30 @@ export async function maybeCreateDynamicAgent(params: {
     agentDirTemplate.replace("{userId}", senderOpenId).replace("{agentId}", agentId),
   );
 
+  // 获取用户模型配置
+  let userModel: string | undefined;
+  let userSystemPrompt: string | undefined;
+  
+  if (identityMapPath) {
+    try {
+      const identityMap = loadIdentityMap(identityMapPath);
+      if (identityMap) {
+        // 从身份表获取用户专属模型和系统提示词
+        userModel = getUserModel(identityMap, senderOpenId);
+        userSystemPrompt = getUserSystemPrompt(identityMap, senderOpenId);
+        
+        if (userModel) {
+          log(`  model: ${userModel}`);
+        }
+        if (userSystemPrompt) {
+          log(`  systemPrompt: 已配置`);
+        }
+      }
+    } catch {
+      // 忽略加载错误
+    }
+  }
+
   log(`feishu: creating dynamic agent "${agentId}" for user ${senderOpenId}`);
   log(`  workspace: ${workspace}`);
   log(`  agentDir: ${agentDir}`);
@@ -138,12 +162,25 @@ export async function maybeCreateDynamicAgent(params: {
   await fs.promises.mkdir(workspace, { recursive: true });
   await fs.promises.mkdir(agentDir, { recursive: true });
 
+  // 构建agent配置，包含模型和系统提示词
+  const agentConfig: any = { id: agentId, workspace, agentDir };
+  
+  // 如果用户配置了模型，添加到agent配置
+  if (userModel) {
+    agentConfig.model = userModel;
+  }
+  
+  // 如果用户配置了系统提示词，添加到agent配置
+  if (userSystemPrompt) {
+    agentConfig.systemPrompt = userSystemPrompt;
+  }
+
   // Update configuration with new agent and binding
   const updatedCfg: OpenClawConfig = {
     ...cfg,
     agents: {
       ...cfg.agents,
-      list: [...(cfg.agents?.list ?? []), { id: agentId, workspace, agentDir }],
+      list: [...(cfg.agents?.list ?? []), agentConfig],
     },
     bindings: [
       ...existingBindings,

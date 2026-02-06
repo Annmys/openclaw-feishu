@@ -54,6 +54,8 @@ export {
   loadIdentityMap,
   getUserLevel,
   getUserInfo,
+  getUserModel,
+  getUserSystemPrompt,
   isNewUser,
   extractIdentityClaim,
   handleIdentityClaim,
