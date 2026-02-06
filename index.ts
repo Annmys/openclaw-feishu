@@ -82,9 +82,9 @@ export {
 } from "./src/reporter.js";
 
 const plugin = {
-  id: "feishu",
+  id: "openclaw-feishu",
   name: "Feishu",
-  description: "Feishu/Lark channel plugin",
+  description: "OpenClaw Feishu/Lark channel plugin with central auth",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
     setFeishuRuntime(api.runtime);
