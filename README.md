@@ -81,9 +81,12 @@
 ```bash
 # 从npm安装（推荐）
 openclaw plugins install @z151620/openclaw-feishu
+```
 
-# 或从GitHub安装
-openclaw plugins install https://github.com/Annmys/openclaw-feishu.git
+### 2. 更新插件
+
+```bash
+openclaw plugins update feishu
 ```
 
 ### 2. 配置身份映射表
@@ -366,6 +369,11 @@ openclaw-feishu/
 
 ## 📝 更新日志
 
+### v0.2.2 (2026-02-07)
+- 🐛 修正 README 安装说明
+  - 移除错误的 GitHub URL 安装方式
+  - 添加插件更新命令
+
 ### v0.2.1 (2026-02-07)
 - 🔧 优化 package.json files 字段，包含示例和文档文件
 - 🧹 清理多余文件（release、.agents、.claude、scripts 等目录）
@@ -381,4 +389,4 @@ openclaw-feishu/
 ---
 
 *维护者：小A 🤖*  
-*版本：0.2.1*
+*版本：0.2.2*
